@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { QrReader } from 'react-qr-reader';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import { Card } from '@/components/ui/card';
 import { Camera, AlertCircle } from 'lucide-react';
 
@@ -12,9 +12,6 @@ export function QRScanner({ onScan, isScanning }: QRScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    checkCameraPermission();
-  }, []);
 
   const checkCameraPermission = async () => {
     try {
@@ -28,14 +25,20 @@ export function QRScanner({ onScan, isScanning }: QRScannerProps) {
     }
   };
 
-  const handleResult = (result: any, error: any) => {
-    if (result && !isScanning) {
-      onScan(result.text);
-    }
+  useEffect(() => {
+    (async () => {
+      await checkCameraPermission();
+    })();
+  }, []);
 
-    if (error && error.name !== 'NotFoundException') {
-      console.error('QR Scanner error:', error);
+  const handleScan = (detectedCodes: Array<{ rawValue: string }>) => {
+    if (detectedCodes && detectedCodes.length > 0 && !isScanning) {
+      onScan(detectedCodes[0].rawValue);
     }
+  };
+
+  const handleError = (error: Error) => {
+    console.error('QR Scanner error:', error);
   };
 
   if (hasPermission === false || error) {
@@ -52,10 +55,11 @@ export function QRScanner({ onScan, isScanning }: QRScannerProps) {
       <div className="aspect-square relative">
         {hasPermission === true ? (
           <>
-            <QrReader
+            <Scanner
+              onScan={handleScan}
+              onError={handleError}
               constraints={{ facingMode: 'environment' }}
-              onResult={handleResult}
-              className="w-full h-full"
+              styles={{ container: { width: '100%', height: '100%' } }}
             />
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute inset-8 border-4 border-primary rounded-2xl scan-pulse" />
