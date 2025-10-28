@@ -1,42 +1,32 @@
 import React, { useEffect, useState, useRef } from 'react';
-import QRCodeRaw from 'react-qr-code';
-const QRCode = QRCodeRaw as unknown as React.FC<{ value: string; size?: number }>;
+import QRCode from 'react-qr-code';
 import { submitAttendance, AttendancePayload, AttendanceResult } from '../services/attendanceService';
+import { useDeviceId } from '../hooks/useDeviceId';
 
 type Props = {
-	// O microfrontend do Professor pode passar o token como prop
-	initialQrToken?: string;
-	// opcional: id do dispositivo (se não, o componente gera e guarda em localStorage)
+	initialQrToken?: string | null;
 	deviceStorageKey?: string;
-	// opcional: função callback para log/analytics ao final
 	onResult?: (r: AttendanceResult) => void;
 };
 
-export const Attendance: React.FC<Props> = ({ initialQrToken, deviceStorageKey = 'aki_device_id', onResult }) => {
+const MOCK_QR = 'MOCK_AKI_2025_MOCKTOKEN'; // usado apenas para visualização enquanto não chega token do professor
+
+export const Attendance: React.FC<Props> = ({ initialQrToken = null, deviceStorageKey, onResult }) => {
+	const { deviceId } = useDeviceId(deviceStorageKey);
 	const [qrToken, setQrToken] = useState<string | null>(initialQrToken ?? null);
 	const [loading, setLoading] = useState(false);
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
 	const [showCpf, setShowCpf] = useState(false);
 	const [cpf, setCpf] = useState('');
 	const submittingRef = useRef(false);
-	const [deviceId, setDeviceId] = useState<string>(() => {
-		try {
-			const stored = localStorage.getItem(deviceStorageKey);
-			if (stored) return stored;
-			const id = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `dev_${Date.now()}`;
-			localStorage.setItem(deviceStorageKey, id);
-			return id;
-		} catch {
-			const id = `dev_${Date.now()}`;
-			localStorage.setItem(deviceStorageKey, id);
-			return id;
-		}
-	});
 
-	// escuta de evento global (Professor microfrontend pode disparar):
+	// Não há nenhum scanner/câmera criado aqui.
+	// Sempre renderizamos um QR visual: se não houver token real, usamos o mock para mostrar.
+	const qrToDisplay = qrToken ?? MOCK_QR;
+
 	useEffect(() => {
+		// Listener para receber token do microfrontend do professor:
 		function handler(e: Event) {
-			// espera CustomEvent com detail: { qrToken: 'AKI_...' }
 			const ce = e as CustomEvent;
 			if (ce?.detail?.qrToken && typeof ce.detail.qrToken === 'string') {
 				setQrToken(ce.detail.qrToken);
@@ -46,10 +36,10 @@ export const Attendance: React.FC<Props> = ({ initialQrToken, deviceStorageKey =
 		return () => window.removeEventListener('professor-qr', handler as EventListener);
 	}, []);
 
-	// Reage quando chega token: renderiza QR e dispara validação automaticamente
+	// Quando um token REAL chega (qrToken != null), disparar validação automaticamente.
 	useEffect(() => {
 		if (!qrToken) return;
-		// start after small delay to let QR render
+		// pequena espera para render do QR antes de enviar
 		const t = setTimeout(() => {
 			void validateAndSendAttendance();
 		}, 300);
@@ -76,11 +66,12 @@ export const Attendance: React.FC<Props> = ({ initialQrToken, deviceStorageKey =
 	}
 
 	async function validateAndSendAttendance(extraCpf?: string) {
+		// Só envia se houver token (token mock NÃO dispara envio)
 		if (!qrToken) {
 			setStatusMessage('Aguardando QR token do professor.');
 			return;
 		}
-		if (submittingRef.current) return; // bloqueio de reenvios
+		if (submittingRef.current) return;
 		submittingRef.current = true;
 		setLoading(true);
 		setStatusMessage(null);
@@ -102,19 +93,17 @@ export const Attendance: React.FC<Props> = ({ initialQrToken, deviceStorageKey =
 		switch (res.type) {
 			case 'success':
 				setStatusMessage(res.message ?? 'Presença confirmada!');
-				// bloquear novos envios por alguns segundos
+				// prevenir reenvios por um curto período
 				submittingRef.current = true;
 				setTimeout(() => (submittingRef.current = false), 5000);
 				break;
 			case 'device_not_linked':
-				// pedir CPF e permitir reenvio
 				setShowCpf(true);
 				setStatusMessage(res.message ?? 'Dispositivo não vinculado. Informe seu CPF.');
 				break;
 			case 'invalid_geolocation':
 				setStatusMessage(res.message ?? 'Você não está no local da aula. Fale com seu professor.');
 				break;
-			case 'error':
 			default:
 				setStatusMessage(res.message ?? 'Erro ao registrar presença. Tente novamente.');
 				break;
@@ -127,23 +116,25 @@ export const Attendance: React.FC<Props> = ({ initialQrToken, deviceStorageKey =
 			return;
 		}
 		setShowCpf(false);
-		setLoading(true);
-		// reutiliza validateAndSendAttendance com cpf
 		await validateAndSendAttendance(cpf.trim());
-		setLoading(false);
 	}
 
-	// helper para professor enviar token via JS: window.dispatchEvent(new CustomEvent('professor-qr', { detail: { qrToken: 'AKI_...' } }))
 	return (
 		<div style={{ maxWidth: 420, margin: '0 auto', textAlign: 'center', padding: 12 }}>
 			<h3>Presença</h3>
-			{qrToken ? (
-				<div style={{ background: 'white', display: 'inline-block', padding: 8 }}>
-					<QRCode value={qrToken} size={256} />
-				</div>
-			) : (
-				<div style={{ padding: 16, border: '1px dashed #ccc' }}>Aguardando QR do professor...</div>
-			)}
+
+			{/* QR visual — sempre mostra algo. Enquanto não houver token real, mostramos mock. */}
+			<div style={{ background: 'white', display: 'inline-block', padding: 8 }}>
+				{React.createElement(QRCode as any, { value: qrToDisplay, size: 256 })}
+			</div>
+
+			<div style={{ marginTop: 8, color: '#666' }}>
+				{qrToken ? (
+					<span>Token recebido — registrando presença automaticamente.</span>
+				) : (
+					<span>QR mock (aguardando token do professor). O professor pode enviar via evento.</span>
+				)}
+			</div>
 
 			<div style={{ marginTop: 12 }}>
 				{loading ? <div>Enviando presença...</div> : statusMessage && <div>{statusMessage}</div>}
@@ -169,6 +160,15 @@ export const Attendance: React.FC<Props> = ({ initialQrToken, deviceStorageKey =
 					</div>
 				</div>
 			)}
+
+			{/* Hint para integração do professor microfrontend */}
+			<div style={{ marginTop: 12, fontSize: 12, color: '#999' }}>
+				<p>
+					Para testes: o microfrontend do professor pode enviar o token chamando:
+					<br />
+					<code>window.dispatchEvent(new CustomEvent('professor-qr', {`{`} detail: {`{`} qrToken: 'AKI_2025_ABC123...' {`}`} {`}`}))</code>
+				</p>
+			</div>
 		</div>
 	);
 };
