@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, createContext, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Smartphone, Loader2 } from 'lucide-react';
 import { CPFInput } from '../components/CPFInput';
-import { registerDevice } from '../api/device-api';
+import { registerDevice as registerDeviceApi } from '../api/device-api';
 import { DeviceStorage } from '@/services/storage/device-storage';
 import { validateCPF } from '@/shared/utils/validators';
 
@@ -21,9 +21,103 @@ const deviceSchema = z.object({
 
 type DeviceFormData = z.infer<typeof deviceSchema>;
 
-export default function RegisterDevice() {
-  const navigate = useNavigate();
+// New: Device context types
+type DeviceContextType = {
+  isLoading: boolean;
+  registerDevice: (cpf: string) => Promise<{ success: boolean; pending?: boolean; message?: string }>;
+};
+
+// New: typed device record for storage
+type DeviceRecord = {
+  device_id: string;
+  cpf: string;
+  registered_at: string;
+  pending_sync?: boolean;
+};
+
+// New: Create context
+const DeviceContext = createContext<DeviceContextType | undefined>(undefined);
+
+// New: Provider that encapsulates registration logic
+function DeviceProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
+
+  const registerDevice = async (cpf: string) => {
+    setIsLoading(true);
+
+    const normalizedCpf = cpf.replace(/\D/g, '');
+    const deviceId =
+      DeviceStorage.getDeviceId() ??
+      (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function'
+        ? (crypto as any).randomUUID()
+        : `device-${Date.now()}`);
+
+    try {
+      const response = await registerDeviceApi({
+        cpf: normalizedCpf,
+        device_id: deviceId,
+      });
+
+      DeviceStorage.save({
+        device_id: deviceId,
+        cpf: normalizedCpf,
+        registered_at: new Date().toISOString(),
+      });
+
+      toast.success(response?.message || 'Device successfully linked!');
+      return { success: true, message: response?.message };
+    } catch (err: unknown) {
+      const errMessage = err && typeof err === 'object' && 'message' in err ? (err as any).message : '';
+      const isNetworkError =
+        (typeof errMessage === 'string' && errMessage.toLowerCase().includes('network')) ||
+        err instanceof TypeError;
+
+      if (isNetworkError) {
+        // Use typed record and remove "as any" cast
+        const pendingRecord: DeviceRecord = {
+          device_id: deviceId,
+          cpf: normalizedCpf,
+          registered_at: new Date().toISOString(),
+          pending_sync: true,
+        };
+
+        DeviceStorage.save(pendingRecord);
+
+        toast('Network error detected. Device saved locally and will be synced when online.', {
+          icon: '💾',
+        });
+
+        return { success: false, pending: true, message: 'Saved locally (pending sync)' };
+      } else {
+        const message =
+          err && typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string'
+            ? (err as any).message
+            : 'Failed to register device';
+        toast.error(message);
+        return { success: false, message };
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const value = useMemo(() => ({ isLoading, registerDevice }), [isLoading]);
+
+  return <DeviceContext.Provider value={value}>{children}</DeviceContext.Provider>;
+}
+
+// New: hook to consume context
+function useDeviceContext() {
+  const ctx = useContext(DeviceContext);
+  if (!ctx) throw new Error('useDeviceContext must be used within DeviceProvider');
+  return ctx;
+}
+
+// Rename original component implementation to consume context
+function RegisterDeviceContent() {
+  const navigate = useNavigate();
+
+  const { isLoading, registerDevice } = useDeviceContext();
 
   const {
     watch,
@@ -32,33 +126,21 @@ export default function RegisterDevice() {
     formState: { errors },
   } = useForm<DeviceFormData>({
     resolver: zodResolver(deviceSchema),
-    defaultValues: { cpf: '' },
+    // default mock CPF for testing (change/remove in production)
+    defaultValues: { cpf: '111.444.777-35' },
   });
 
   const cpf = watch('cpf');
 
   const onSubmit = async (data: DeviceFormData) => {
-    setIsLoading(true);
-    try {
-      const deviceId = DeviceStorage.getDeviceId();
-      const response = await registerDevice({
-        cpf: data.cpf,
-        device_id: deviceId,
-      });
+    // delegate registration to context
+    const result = await registerDevice(data.cpf);
 
-      DeviceStorage.save({
-        device_id: deviceId,
-        cpf: data.cpf,
-        registered_at: new Date().toISOString(),
-      });
-
-      toast.success(response.message || 'Device successfully linked!');
+    // navigate on success or on pending network save so user can continue
+    if (result.success || result.pending) {
       navigate('/scan');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to register device');
-    } finally {
-      setIsLoading(false);
     }
+    // errors are already handled with toasts inside the provider
   };
 
   return (
@@ -82,7 +164,10 @@ export default function RegisterDevice() {
               <CPFInput
                 id="cpf"
                 value={cpf}
-                onChange={(value) => setValue('cpf', value)}
+                onChange={(value) =>
+                  // force validation/touch on change so errors update immediately
+                  setValue('cpf', value, { shouldValidate: true, shouldTouch: true })
+                }
                 disabled={isLoading}
               />
               {errors.cpf && (
@@ -111,5 +196,14 @@ export default function RegisterDevice() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Export wrapper that provides the context
+export default function RegisterDevice() {
+  return (
+    <DeviceProvider>
+      <RegisterDeviceContent />
+    </DeviceProvider>
   );
 }
