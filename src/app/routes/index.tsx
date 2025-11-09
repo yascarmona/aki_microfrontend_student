@@ -11,15 +11,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="/scan" element={<ScanPage />} />
       <Route path="/register-device" element={<RegisterDevice />} />
-      <Route
-        path="/scan"
-        element={
-          <ProtectedRoute>
-            <ScanPage />
-          </ProtectedRoute>
-        }
-      />
       <Route path="/" element={<Navigate to="/scan" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

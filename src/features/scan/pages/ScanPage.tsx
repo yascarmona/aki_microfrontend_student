@@ -18,34 +18,37 @@ export default function ScanPage() {
   const [lastScan, setLastScan] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!DeviceStorage.isRegistered()) {
-      navigate('/register-device');
-      return;
-    }
+  const handleOnline = () => {
+    setOnline(true);
+    syncQueue();
+  };
+  const handleOffline = () => setOnline(false);
 
-    const handleOnline = () => {
-      setOnline(true);
-      syncQueue();
-    };
-    const handleOffline = () => setOnline(false);
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+  setQueueCount(QueueStorage.count());
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    setQueueCount(QueueStorage.count());
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
+  }, [setOnline, setQueueCount]);
 
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [navigate, setOnline, setQueueCount]);
 
   const handleScan = async (data: string) => {
-    if (data === lastScan) return;
+  if (data === lastScan) return;
+  setLastScan(data);
 
-    setLastScan(data);
-    const success = await submit(data);
-    setTimeout(() => setLastScan(null), 3000);
+  // ✅ Se o dispositivo não estiver registrado, redireciona para CPF
+  if (!DeviceStorage.isRegistered()) {
+    navigate('/register-device');
+    return;
+  }
+
+  const success = await submit(data);
+  setTimeout(() => setLastScan(null), 3000);
   };
+
 
   const syncQueue = async () => {
     const queue = QueueStorage.getAll();
@@ -58,7 +61,7 @@ export default function ScanPage() {
     navigate('/register-device');
   };
 
-  // 👉 Mock de QR Code local — será substituído pelo QR recebido do microfrontend do professor
+  // Mock de QR Code local — será substituído pelo QR recebido do microfrontend do professor
   const mockQRCodeValue = "https://pin.it/2tfFw0bao";
 
   return (
