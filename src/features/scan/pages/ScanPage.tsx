@@ -59,7 +59,7 @@ export default function ScanPage() {
   };
 
   // 👉 Mock de QR Code local — será substituído pelo QR recebido do microfrontend do professor
-  const mockQRCodeValue = "https://aki-presenca.mock/12345";
+  const mockQRCodeValue = "https://pin.it/2tfFw0bao";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-4 pb-8">
