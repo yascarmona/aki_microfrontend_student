@@ -1,48 +1,29 @@
-const DEVICE_STORAGE_KEY = import.meta.env.VITE_DEVICE_STORAGE_KEY || 'aki_student_device';
+// src/utils/DeviceStorage.ts
 
 export interface DeviceData {
-  device_id: string;
-  cpf: string;
-  registered_at: string;
+  id: string;
+  studentCpf: string;
+  latitude?: number;
+  longitude?: number;
 }
 
-export class DeviceStorage {
-  static save(data: DeviceData): void {
-    try {
-      localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error('Failed to save device data:', error);
-    }
-  }
+const DEVICE_KEY = "aki_device";
 
-  static get(): DeviceData | null {
-    try {
-      const data = localStorage.getItem(DEVICE_STORAGE_KEY);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.error('Failed to retrieve device data:', error);
-      return null;
-    }
-  }
+export const DeviceStorage = {
+  get(): DeviceData | null {
+    const raw = localStorage.getItem(DEVICE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  },
 
-  static clear(): void {
-    try {
-      localStorage.removeItem(DEVICE_STORAGE_KEY);
-    } catch (error) {
-      console.error('Failed to clear device data:', error);
-    }
-  }
+  save(data: DeviceData) {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify(data));
+  },
 
-  static isRegistered(): boolean {
-    return this.get() !== null;
-  }
+  clear() {
+    localStorage.removeItem(DEVICE_KEY);
+  },
 
-  static getDeviceId(): string {
-    const data = this.get();
-    return data?.device_id || this.generateDeviceId();
-  }
-
-  private static generateDeviceId(): string {
-    return `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-}
+  isRegistered(): boolean {
+    return !!localStorage.getItem(DEVICE_KEY);
+  },
+};

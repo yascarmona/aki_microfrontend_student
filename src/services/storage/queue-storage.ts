@@ -1,70 +1,28 @@
-import { QueuedScan } from '@/shared/types';
+const QUEUE_KEY = "aki_queue";
 
-const QUEUE_STORAGE_KEY = 'aki_scan_queue';
-const MAX_RETRIES = 3;
+export const QueueStorage = {
+  getAll() {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  },
 
-export class QueueStorage {
-  static add(scan: Omit<QueuedScan, 'id' | 'timestamp' | 'retries'>): void {
-    const queue = this.getAll();
-    const queuedScan: QueuedScan = {
-      ...scan,
-      id: this.generateId(),
-      timestamp: Date.now(),
-      retries: 0,
-    };
-    queue.push(queuedScan);
-    this.save(queue);
-  }
+  add(record: any) {
+    const all = QueueStorage.getAll();
+    all.push(record);
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(all));
+  },
 
-  static getAll(): QueuedScan[] {
-    try {
-      const data = localStorage.getItem(QUEUE_STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('Failed to retrieve queue:', error);
-      return [];
-    }
-  }
+  remove(index: number) {
+    const all = QueueStorage.getAll();
+    all.splice(index, 1);
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(all));
+  },
 
-  static remove(id: string): void {
-    const queue = this.getAll().filter((item) => item.id !== id);
-    this.save(queue);
-  }
+  clear() {
+    localStorage.removeItem(QUEUE_KEY);
+  },
 
-  static incrementRetry(id: string): void {
-    const queue = this.getAll();
-    const item = queue.find((scan) => scan.id === id);
-    if (item) {
-      item.retries += 1;
-      if (item.retries >= MAX_RETRIES) {
-        this.remove(id);
-      } else {
-        this.save(queue);
-      }
-    }
-  }
-
-  static clear(): void {
-    try {
-      localStorage.removeItem(QUEUE_STORAGE_KEY);
-    } catch (error) {
-      console.error('Failed to clear queue:', error);
-    }
-  }
-
-  static count(): number {
-    return this.getAll().length;
-  }
-
-  private static save(queue: QueuedScan[]): void {
-    try {
-      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
-    } catch (error) {
-      console.error('Failed to save queue:', error);
-    }
-  }
-
-  private static generateId(): string {
-    return `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-}
+  count() {
+    return QueueStorage.getAll().length;
+  },
+};
