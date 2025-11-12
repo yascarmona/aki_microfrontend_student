@@ -1,175 +1,116 @@
-# AKI! Student Microfrontend
+# AKI! Microfrontend do Estudante
 
-A mobile-first React + TypeScript application for student attendance registration via QR code scanning.
+Aplicação mobile-first em React + TypeScript para registro de presença via leitura de QR Code.
 
-## 🎯 Features
+## Funcionalidades
+- Registro do dispositivo (associa CPF ao device). 
+- Leitura de QR Code para presença. 
+- Suporte offline (fila e sincronização posterior). 
+- Geolocalização para verificação. 
+- Feedback em tempo real (sucesso/erro). 
+- UI otimizada para toque.
 
-- **Device Registration**: Link device to student CPF (one-time setup)
-- **QR Code Scanning**: Register attendance by scanning QR codes
-- **Offline Support**: Queue scans when offline, sync when connection restored
-- **Geolocation**: Automatic GPS location capture for attendance verification
-- **Real-time Feedback**: Success/error notifications with clear messaging
-- **Mobile-First Design**: Optimized for smartphones with touch-friendly UI
-
-## 🏗️ Architecture
-
-Built following **Clean Architecture** + **SOLID** + **Vertical Slice Architecture** principles:
-
+## Arquitetura
+Baseada em princípios de Clean Architecture / SOLID / Vertical Slice.
 ```
 src/
-├── app/                    # App-level configuration
-│   ├── routes/            # Routing configuration
-│   └── store/             # Global state management
-├── features/              # Feature-based modules (vertical slices)
-│   ├── device/           # Device registration
-│   ├── scan/             # QR scanning & submission
-│   └── presence/         # Presence confirmation
-├── shared/               # Shared utilities & types
-│   ├── components/       # Reusable UI components
-│   ├── hooks/           # Custom React hooks
-│   ├── types/           # TypeScript interfaces
-│   └── utils/           # Helper functions
-└── services/            # External service integrations
-    ├── http/           # API client (Axios)
-    └── storage/        # LocalStorage & IndexedDB
+  app/        # Configuração global (rotas, store)
+  features/   # Slices: device, scan, presence
+  shared/     # Componentes, hooks, tipos, utils reutilizáveis
+  services/   # Integrações externas (http, storage)
 ```
+Fluxo principal: UI -> hooks/estado (Zustand) -> serviço HTTP (Axios) -> API Gateway -> resposta -> atualização de store / notificação.
 
-## 🚀 Tech Stack
+## Stack
+- React 18 + TS
+- Vite (build)
+- React Router DOM (rotas)
+- Zustand (estado)
+- TailwindCSS + shadcn/ui (UI)
+- React Hook Form + Zod (forms/validação)
+- Axios (HTTP)
+- react-qr-reader (QR)
+- Sonner (notificações)
 
-- **Framework**: React 18 + TypeScript
-- **Build Tool**: Vite
-- **Routing**: React Router DOM
-- **State Management**: Zustand
-- **UI Framework**: TailwindCSS + shadcn/ui
-- **Forms**: React Hook Form + Zod
-- **HTTP Client**: Axios
-- **QR Scanning**: react-qr-reader
-- **Notifications**: Sonner
-
-## 📦 Installation
-
+## Instalação
 ```bash
-# Install dependencies
 npm install
-
-# Copy environment variables
 cp .env.example .env
-
-# Update .env with your BFF API URL
-# VITE_API_BASE_URL=https://your-bff-api.com/v1
+# ajustar VITE_API_BASE_URL
 ```
 
-## 🔧 Development
-
+## Desenvolvimento
 ```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+npm run dev      # servidor dev
+npm run build    # build produção
+npm run preview  # preview build
 ```
 
-## 🐳 Docker
-
+## Docker
 ```bash
-# Build Docker image
 docker build -t aki-student:latest .
-
-# Run container
 docker run -p 8080:80 aki-student:latest
-
-# Access at http://localhost:8080
+# acessar http://localhost:8080
 ```
 
-## 🌐 API Integration
-
-The app communicates exclusively with the **BFF (Backend for Frontend)** layer:
-
-### Device Registration
+## Integração com API (Gateway)
+Exemplo registro dispositivo:
 ```http
 POST /students/device
 Content-Type: application/json
-
 {
   "cpf": "12345678900",
   "device_id": "device_abc123"
 }
 ```
-
-### Scan Submission
+Exemplo envio leitura:
 ```http
 POST /scan
 Content-Type: application/json
-
 {
   "qr_token": "signed_jwt_token",
   "device_id": "device_abc123",
-  "location": {
-    "latitude": -23.550520,
-    "longitude": -46.633308
-  },
+  "location": { "latitude": -23.55, "longitude": -46.63 },
   "device_time": "2024-01-15T10:30:00.000Z"
 }
 ```
 
-## 📱 Offline Behavior
+## Comportamento Offline
+1. Detecta estado de rede. 
+2. Salva leituras falhas em storage local. 
+3. Sincroniza automaticamente ao voltar online. 
+4. Indica pendências ao usuário. 
+5. Até 3 tentativas de retry por leitura.
 
-1. **Network Detection**: Automatically detects online/offline status
-2. **Queue Management**: Failed scans are stored in localStorage
-3. **Auto-Sync**: When connection is restored, queued scans are retried
-4. **User Feedback**: Clear indicators show offline status and pending syncs
-5. **Retry Logic**: Max 3 retry attempts per queued scan
+## Segurança
+- Device ID armazenado em localStorage com chave configurável. 
+- Validação de CPF antes do envio. 
+- QR tokens JWT validados no BFF. 
+- Permissão de localização solicitada somente quando necessário. 
+- Sem dados sensíveis em logs de produção.
 
-## 🔒 Security
+## Design
+Paleta principal: Amarelo (#FFD700), Marrom (#A0522D), Fundo branco. Princípios: mobile-first, alto contraste, alvos de toque >= 44px, animações suaves e comandos claros.
 
-- Device ID stored securely in localStorage
-- CPF validation before submission
-- QR tokens are signed JWTs (validated by BFF)
-- Location permissions requested only when needed
-- No sensitive data logged to console in production
+## Variáveis de Ambiente
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `VITE_APP_ENV` | Nome do ambiente | `production` |
+| `VITE_API_BASE_URL` | URL base do BFF | `https://api.aki.com/v1` |
+| `VITE_APP_NAME` | Nome da aplicação | `AKI Student` |
+| `VITE_DEVICE_STORAGE_KEY` | Chave localStorage device | `aki_student_device` |
 
-## 🎨 Design System
+## Testes (Futuro)
+Estrutura pronta: funções puras em utils, camada HTTP separada, hooks isolam lógica, componentes desacoplados.
 
-**Color Palette**:
-- Primary: Golden Yellow (`#FFD700`)
-- Secondary: Sienna Brown (`#A0522D`)
-- Background: White (`#FFFFFF`)
+## Autores
+Camila Delarosa  
+Dimitri Delinski  
+Guilherme Belo  
+Yasmin Carmona
 
-**Key Principles**:
-- Mobile-first responsive design
-- Large touch targets (min 44px)
-- High contrast for readability
-- Smooth animations for feedback
-- Minimal UI with clear CTAs
-
-## 📝 Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `VITE_APP_ENV` | Environment name | `production` |
-| `VITE_API_BASE_URL` | BFF API base URL | `https://api.aki.com/v1` |
-| `VITE_APP_NAME` | Application name | `AKI Student` |
-| `VITE_DEVICE_STORAGE_KEY` | LocalStorage key | `aki_student_device` |
-
-## 🧪 Testing (Future)
-
-Code is structured for testability:
-- Pure functions in utils
-- Separated API layer
-- Hooks for business logic
-- Component isolation
-
-## 📄 License
-
-Proprietary - AKI! Project
-
-## 👥 Authors
-
-Built with ❤️ by the AKI! Team
+## Licença
+Uso interno / proprietário AKI!
 
 ---
-
-For more information, contact the development team.
+Para mais informações contate o time de desenvolvimento.
