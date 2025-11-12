@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardHeader,
@@ -13,9 +14,8 @@ export default function ScanPage() {
   const [status, setStatus] = useState("Carregando...");
   const [color, setColor] = useState("text-[hsl(var(--aki-brown))]");
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [showCpfModal, setShowCpfModal] = useState(false);
-  const [cpf, setCpf] = useState("");
-  const [lastToken, setLastToken] = useState<string | null>(null);
+  const navigate = useNavigate();
+  // Removido fluxo de modal CPF; agora redireciona para rota dedicada.
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -25,65 +25,14 @@ export default function ScanPage() {
       window.location.pathname.split("/").pop();
 
     if (qrToken && qrToken.length > 30) {
-      registerAttendance(qrToken);
+      // Novo comportamento: SEMPRE redireciona para confirmação de CPF ao escanear um token de evento.
+      navigate(`/attendance/confirm?token=${encodeURIComponent(qrToken)}`);
     } else {
       fetchActiveEventQrCode();
     }
   }, []);
 
-  async function registerAttendance(qrToken: string, cpfValue?: string) {
-    try {
-      setStatus("Registrando presença...");
-      setColor("text-[hsl(var(--aki-brown))]");
-
-      let deviceId = localStorage.getItem("device_id");
-      if (!deviceId) {
-        deviceId = crypto.randomUUID();
-        localStorage.setItem("device_id", deviceId);
-      }
-
-      const payload = {
-        device_id: deviceId,
-        qr_token: qrToken,
-        location: { latitude: 0, longitude: 0 },
-        device_time: new Date().toISOString(),
-        ...(cpfValue ? { student_cpf: cpfValue } : {}),
-      };
-
-      const response = await fetch(
-        "https://aki-bff-h9cjg7hpfzc9fggh.eastus2-01.azurewebsites.net/events/attendance",
-        {
-          method: "POST",
-          headers: {
-            accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (response.status === 404) {
-        // 🔸 CPF não encontrado → abre modal
-        setLastToken(qrToken);
-        setShowCpfModal(true);
-        setStatus("CPF não encontrado. Informe seu CPF para registrar presença.");
-        setColor("text-[hsl(var(--aki-brown))]");
-        return;
-      }
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Erro ao registrar presença");
-      }
-
-      setStatus("✅ Presença registrada com sucesso!");
-      setColor("text-[hsl(var(--success))]");
-    } catch (err) {
-      console.error(err);
-      setStatus("❌ Token inválido. Por favor, escaneie o QR Code novamente.");
-      setColor("text-[hsl(var(--destructive))]");
-    }
-  }
+  // Função de registro direto removida do fluxo de escaneio inicial; uso fica centralizado na página de confirmação.
 
   async function fetchActiveEventQrCode() {
     try {
@@ -129,21 +78,7 @@ export default function ScanPage() {
     }
   }
 
-  function handleSubmitCpf() {
-    if (!cpf || !lastToken) return;
-    setShowCpfModal(false);
-    registerAttendance(lastToken, cpf);
-  }
-
-  // 🔸 Máscara simples de CPF
-  function handleCpfChange(value: string) {
-    const numeric = value.replace(/\D/g, "").slice(0, 11);
-    const masked = numeric
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-    setCpf(masked);
-  }
+  // Fluxo de CPF removido daqui.
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[hsl(var(--aki-light))] p-6">
@@ -176,27 +111,7 @@ export default function ScanPage() {
             <p className={`text-base font-medium text-center ${color}`}>{status}</p>
           )}
 
-          {/* 🔸 Modal CPF */}
-          {showCpfModal && (
-            <div className="mt-4 w-full text-center">
-              <p className="text-sm text-[hsl(var(--aki-brown))] mb-2">
-                Digite seu CPF para confirmar a presença:
-              </p>
-              <Input
-                type="text"
-                placeholder="000.000.000-00"
-                value={cpf}
-                onChange={(e) => handleCpfChange(e.target.value)}
-                className="mb-3"
-              />
-              <Button
-                onClick={handleSubmitCpf}
-                className="bg-[hsl(var(--aki-gold))] hover:bg-[#fca311] text-white w-full"
-              >
-                Confirmar Presença
-              </Button>
-            </div>
-          )}
+          {/* Modal CPF removido: fluxo agora usa rota /attendance/confirm */}
         </CardContent>
       </Card>
 

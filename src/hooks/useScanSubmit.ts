@@ -3,7 +3,8 @@ import { DeviceStorage } from "@/services/storage/device-storage";
 import { QueueStorage } from "@/services/storage/queue-storage";
 import { useAppStore } from "@/stores/app-store";
 
-const API_BASE = "https://aki-bff-h9cjg7hpfzc9fggh.eastus2-01.azurewebsites.net";
+// Permite configurar a URL do BFF via variável de ambiente, com fallback para produção atual.
+const API_BASE = (import.meta as any).env?.VITE_BFF_BASE_URL || "https://aki-bff-h9cjg7hpfzc9fggh.eastus2-01.azurewebsites.net";
 
 export function useScanSubmit() {
   const { isOnline, setQueueCount } = useAppStore();

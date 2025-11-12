@@ -1,19 +1,14 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import RegisterDevice from '@/features/device/pages/RegisterDevice';
-import ScanPage from '@/features/scan/pages/ScanPage';
-import { DeviceStorage } from '@/services/storage/device-storage';
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const isRegistered = DeviceStorage.isRegistered();
-  return isRegistered ? <>{children}</> : <Navigate to="/register-device" replace />;
-}
+import ConfirmAttendancePage from '@/features/attendance/pages/ConfirmAttendancePage';
+import QrDisplayPage from '@/features/qr/pages/QrDisplayPage';
+import Index from '@/pages/Index';
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/scan" element={<ScanPage />} />
-      <Route path="/register-device" element={<RegisterDevice />} />
-      <Route path="/" element={<Navigate to="/scan" replace />} />
+  <Route path="/qr" element={<QrDisplayPage />} />
+  <Route path="/attendance/confirm" element={<ConfirmAttendancePage />} />
+    <Route path="/" element={<Index />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
